@@ -117,4 +117,4 @@ void set_badmark_pos (int pos, int place);
 int get_udsize();
 int check_ecc_status();
 void bch_reset();
-
+void init_zte_mf286d_nand(void);

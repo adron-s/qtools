@@ -182,6 +182,9 @@ if (!test_loader()) {
 
 if (get_sahara()) disable_bam(); // отключаем NANDc BAM, если работаем с чипсетами нового поколения
 
+if (is_chipset("MDM9x55") && mempeek(NAND_FLASH_READ_ID) == 0x2690ac2c) {
+	init_zte_mf286d_modem_nand();
+}
 get_flash_config();
 cfg0=mempeek(nand_cfg0);
 printf("\n Версия HELLO-протокола: %i",rbuf[0x22]); 
@@ -429,7 +432,7 @@ if (oobsize == 0) {
 	// Micron MT29F4G08ABBEA3W и Toshiba MD5N04G02GSD2ARK:
 	// на самом деле 224, определяется 128, реально 
 	// используется 160, для raw-режима нагляднее 256 :)
-	if ((nandid == 0x2690ac2c) || (nandid == 0x2690ac98)) oobsize = 256; 
+	if ((nandid == 0x2690ac2c) || (nandid == 0x2690ac98)) oobsize = 224;
 	else oobsize = (8 << ((devcfg >> 2) & 0x1)) * (pagesize >> 9);
 } 
 
@@ -832,4 +835,47 @@ if (!bch_mode) return;
 cfgecctemp=mempeek(nand_ecc_cfg); // конфигурация с учётом включения/отключения ECC
 mempoke(nand_ecc_cfg,cfgecctemp|2); // сброс движка BCH
 mempoke(nand_ecc_cfg,cfgecctemp); // восстановление конфигурации BCH
+}
+
+#define UD_SIZE_BYTES										9
+#define UD_SIZE_BYTES_MASK							0x3ff
+#define SPARE_SIZE_BYTES								23
+#define SPARE_SIZE_BYTES_MASK						0xf
+#define BAD_BLOCK_BYTE_NUM							6
+#define BAD_BLOCK_BYTE_NUM_MASK					0x3ff
+#define BAD_BLOCK_IN_SPARE_AREA					16
+#define BAD_BLOCK_IN_SPARE_AREA_MASK		0x1
+#define ECC_MODE												4
+#define ECC_MODE_MASK										0xf
+#define ECC_PARITY_SIZE_BYTES_BCH				8
+#define ECC_PARITY_SIZE_BYTES_BCH_MASK	0xff
+#define ECC_NUM_DATA_BYTES							16
+#define ECC_NUM_DATA_BYTES_MASK					0x3fff
+
+#define MOD_REG_VAL(reg, what, val) 		 \
+	reg = reg & (~(what##_MASK << what)) | \
+		(val << what)
+
+//***************************************************************
+//*  Init the NAND controller for ZTE MF286D internal modem
+//***************************************************************
+void init_zte_mf286d_modem_nand(void)
+{
+	uint32 cfg0, cfg1, ecccfg;
+
+	cfg0 = mempeek(nand_cfg0);
+	cfg1 = mempeek(nand_cfg1);
+	ecccfg = mempeek(nand_ecc_cfg);
+
+	MOD_REG_VAL(cfg0, UD_SIZE_BYTES, 0x204);
+	MOD_REG_VAL(cfg0, SPARE_SIZE_BYTES, 0x2);
+	MOD_REG_VAL(cfg1, BAD_BLOCK_BYTE_NUM, 0x175);
+	MOD_REG_VAL(cfg1, BAD_BLOCK_IN_SPARE_AREA, 0x0);
+	MOD_REG_VAL(ecccfg, ECC_MODE, 0x1);
+	MOD_REG_VAL(ecccfg, ECC_PARITY_SIZE_BYTES_BCH, 0xd);
+	MOD_REG_VAL(ecccfg, ECC_NUM_DATA_BYTES, 0x204);
+
+	mempoke(nand_cfg0, cfg0);
+	mempoke(nand_cfg1, cfg1);
+	mempoke(nand_ecc_cfg, ecccfg);
 }
